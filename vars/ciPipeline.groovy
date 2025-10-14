@@ -29,9 +29,7 @@ def call(Map config = [:]) {
                             echo "INFO: Branch push detected. Running standard SonarQube branch analysis."
                             withSonarQubeEnv('MySonarQube') {
                                 // Force the scanner to use the Java version from the 'tools' block
-                                sh """
-                                    ${env.JAVA_HOME}/bin/sonar-scanner
-                                """
+                                sh "sonar-scanner"
                             }
                         }
                     }
