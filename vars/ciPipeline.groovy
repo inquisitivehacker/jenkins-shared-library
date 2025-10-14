@@ -1,7 +1,9 @@
 def call(Map config = [:]) {
     pipeline {
         agent { label 'debian-master' } 
-
+         tools {
+            jdk 'JDK-21' 
+        }
         stages {
             stage('Checkout') {
                 steps {
