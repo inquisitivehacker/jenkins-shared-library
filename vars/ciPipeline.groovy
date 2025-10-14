@@ -17,8 +17,9 @@ def call(Map config = [:]) {
                         if (env.CHANGE_ID) {
                             echo "INFO: Pull Request build detected. Running SonarQube PR analysis."
                             withSonarQubeEnv('MySonarQube') {
+                                // Force the scanner to use the Java version from the 'tools' block
                                 sh """
-                                    sonar-scanner \
+                                    ${env.JAVA_HOME}/bin/sonar-scanner \
                                     -Dsonar.pullrequest.base=main \
                                     -Dsonar.pullrequest.branch=${env.CHANGE_BRANCH} \
                                     -Dsonar.pullrequest.key=${env.CHANGE_ID}
@@ -27,7 +28,10 @@ def call(Map config = [:]) {
                         } else {
                             echo "INFO: Branch push detected. Running standard SonarQube branch analysis."
                             withSonarQubeEnv('MySonarQube') {
-                                sh "sonar-scanner"
+                                // Force the scanner to use the Java version from the 'tools' block
+                                sh """
+                                    ${env.JAVA_HOME}/bin/sonar-scanner
+                                """
                             }
                         }
                     }
