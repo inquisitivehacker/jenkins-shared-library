@@ -8,24 +8,18 @@ def call(Map config = [:]) {
         }
 
         stages {
-            stage('Checkout') {
-                steps {
-                    // Securely check out the code using your GitHub token
-                    checkout([$class: 'GitSCM',
-                        branches: [[name: '*/master']], // Or '*/main'
-                        userRemoteConfigs: [[
-                            url: "https://github.com/${env.CHANGE_REPO}.git", // Dynamically get repo URL
-                            credentialsId: 'github-token'
-                        ]]
-                    ])
-                }
-            }
-
+            // The initial checkout is handled by the multibranch pipeline itself,
+            // so we don't need a separate checkout stage here.
+            // Using 'checkout scm' ensures we have the latest code.
+            
             stage('SonarQube Analysis') {
                 steps {
+                    // It's good practice to ensure the workspace has the correct code
+                    // before running analysis.
+                    checkout scm
+
                     script {
                         withSonarQubeEnv('MySonarQube') {
-                            // ** RESTORED PULL REQUEST LOGIC **
                             if (env.CHANGE_ID) {
                                 echo "INFO: Pull Request build detected. Running SonarQube PR analysis."
                                 sh """
