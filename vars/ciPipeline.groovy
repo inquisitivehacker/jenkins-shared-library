@@ -1,32 +1,52 @@
 def call(Map config = [:]) {
     pipeline {
-        agent { label 'debian-master' } 
+        agent { label 'debian-master' }
+
+        tools {
+            jdk 'JDK-21'  // Make sure this matches the Jenkins-installed JDK
+        }
 
         environment {
-            // Jenkins credential ID for your global SonarQube token
-            SONAR_AUTH_TOKEN = credentials('sonar-global-token')
-            // SonarQube server URL
-            SONARQUBE_URL = 'http://127.0.0.1:9000'
-            // Docker image for SonarScanner
-            SONAR_SCANNER_IMAGE = 'sonarsource/sonar-scanner-cli:11.4.0.2044_7.2.0'
+            // SonarQube global token stored in Jenkins credentials
+            SONAR_AUTH_TOKEN = credentials('sonar-global-token')  
+        }
+
+        options {
+            skipDefaultCheckout(true)  // We'll handle checkout manually with credentials
         }
 
         stages {
+
+            stage('Clean Workspace') {
+                steps {
+                    deleteDir()  // Ensures no old files or credentials interfere
+                }
+            }
+
             stage('Checkout') {
                 steps {
-                    checkout scm
+                    checkout([$class: 'GitSCM',
+                        branches: [[name: '*/master']],
+                        doGenerateSubmoduleConfigurations: false,
+                        extensions: [],
+                        userRemoteConfigs: [[
+                            url: 'https://github.com/inquisitivehacker/k6-loadTesting-infrastructure.git',
+                            credentialsId: 'github-token'  // Your new GitHub PAT
+                        ]]
+                    ])
                 }
             }
 
             stage('SonarQube Analysis') {
                 steps {
                     script {
-                        echo "Running SonarQube analysis using Dockerized scanner..."
-                        sh """
-                        docker run --rm -e SONAR_HOST_URL=$SONARQUBE_URL -e SONAR_LOGIN=$SONAR_AUTH_TOKEN \
-                            -v \$(pwd):/usr/src -w /usr/src $SONAR_SCANNER_IMAGE \
-                            sonar-scanner
-                        """
+                        withSonarQubeEnv('MySonarQube') {
+                            // Use Java from tools block explicitly
+                            sh """
+                                ${env.JAVA_HOME}/bin/sonar-scanner \
+                                -Dsonar.login=${SONAR_AUTH_TOKEN}
+                            """
+                        }
                     }
                 }
             }
@@ -44,6 +64,12 @@ def call(Map config = [:]) {
                         }
                     }
                 }
+            }
+        }
+
+        post {
+            always {
+                cleanWs() // Optional: clean workspace after build
             }
         }
     }
