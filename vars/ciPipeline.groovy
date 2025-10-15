@@ -1,37 +1,21 @@
+// This is the corrected, final version of your shared library script
 def call(Map config = [:]) {
     pipeline {
         agent { label 'debian-master' }
 
-        tools {
-            jdk 'JDK-21'  // Make sure this matches the Jenkins-installed JDK
-        }
-
         environment {
-            // SonarQube global token stored in Jenkins credentials
-            SONAR_AUTH_TOKEN = credentials('sonar-global-token')  
-        }
-
-        options {
-            skipDefaultCheckout(true)  // We'll handle checkout manually with credentials
+            SONAR_AUTH_TOKEN = credentials('sonar-global-token')
         }
 
         stages {
-
-            stage('Clean Workspace') {
-                steps {
-                    deleteDir()  // Ensures no old files or credentials interfere
-                }
-            }
-
             stage('Checkout') {
                 steps {
+                    // Securely check out the code using your GitHub token
                     checkout([$class: 'GitSCM',
-                        branches: [[name: '*/master']],
-                        doGenerateSubmoduleConfigurations: false,
-                        extensions: [],
+                        branches: [[name: '*/master']], // Or '*/main'
                         userRemoteConfigs: [[
-                            url: 'https://github.com/inquisitivehacker/k6-loadTesting-infrastructure.git',
-                            credentialsId: 'github-token'  // Your new GitHub PAT
+                            url: "https://github.com/${env.CHANGE_REPO}.git", // Dynamically get repo URL
+                            credentialsId: 'github-token'
                         ]]
                     ])
                 }
@@ -41,11 +25,20 @@ def call(Map config = [:]) {
                 steps {
                     script {
                         withSonarQubeEnv('MySonarQube') {
-                            // Use Java from tools block explicitly
-                            sh """
-                                ${env.JAVA_HOME}/bin/sonar-scanner \
-                                -Dsonar.login=${SONAR_AUTH_TOKEN}
-                            """
+                            // ** RESTORED PULL REQUEST LOGIC **
+                            if (env.CHANGE_ID) {
+                                echo "INFO: Pull Request build detected. Running SonarQube PR analysis."
+                                sh """
+                                    sonar-scanner \
+                                    -Dsonar.login=${SONAR_AUTH_TOKEN} \
+                                    -Dsonar.pullrequest.base=${env.CHANGE_TARGET} \
+                                    -Dsonar.pullrequest.branch=${env.BRANCH_NAME} \
+                                    -Dsonar.pullrequest.key=${env.CHANGE_ID}
+                                """
+                            } else {
+                                echo "INFO: Branch push detected. Running standard SonarQube branch analysis."
+                                sh "sonar-scanner -Dsonar.login=${SONAR_AUTH_TOKEN}"
+                            }
                         }
                     }
                 }
@@ -64,12 +57,6 @@ def call(Map config = [:]) {
                         }
                     }
                 }
-            }
-        }
-
-        post {
-            always {
-                cleanWs() // Optional: clean workspace after build
             }
         }
     }
